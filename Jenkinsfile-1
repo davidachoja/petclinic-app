@@ -1,0 +1,41 @@
+def ansibleSERVER = 'ubuntu@18.130.174.81'
+pipeline {
+    agent any 
+    tools {
+        maven 'maven'
+    } 
+    
+    stages {
+        stage('Build Code'){
+            steps{
+                echo "packaging the application"
+                sh 'mvn clean package -Dmaven.test.skip'
+            }
+        }
+
+        stage ("build docker image and push to nexus") {
+            steps {
+                script {
+                    echo "building docker image and pushing to nexus"
+                    withCredentials([usernamePassword(credentialsId:'nexus-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh 'docker build -t 52.56.59.203:8082/app:1.2 .'
+                        sh "echo $PASS | docker login -u $USER --password-stdin 52.56.59.203:8082"
+                        sh 'docker push 52.56.59.203:8082/app:1.2'
+                    }
+                    
+                }
+            }
+        }
+
+        stage('Send playbook to Ansible Server') {
+            steps { 
+                sshagent(['ansible-key']) {
+                    sh "scp -o StrictHostKeyChecking=no prod.yaml  ${ansibleSERVER}:/home/ubuntu"
+                    sh "ssh -o StrictHostKeyChecking=no ${ansibleSERVER} 'ansible-playbook prod.yaml'"
+                }
+            }
+        }
+
+    }
+}
+

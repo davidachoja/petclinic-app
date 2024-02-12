@@ -1,0 +1,65 @@
+pipeline {
+    agent any 
+    tools {
+        maven 'maven'
+    } 
+    
+    stages {
+        stage('Code Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                sh "mvn sonar:sonar -Dsonar.java.binaries=target/classes"
+                }
+            }   
+        }
+
+        stage('code quality approval'){
+            steps{
+                timeout(time: 2, unit: 'MINUTES') {
+                  waitForQualityGate abortPipeline: true
+               }
+            }
+        } 
+        stage('Build Code'){
+            steps{
+                echo "packaging the application"
+                sh 'mvn clean package -Dmaven.test.skip'
+            }
+        }
+
+        stage ("build docker image and push to nexus") {
+            steps {
+                script {
+                    echo "building docker image and pushing to nexus"
+                    withCredentials([usernamePassword(credentialsId:'nexus-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh 'docker build -t 35.178.203.32:8082/app:1.4 .'
+                        sh "echo $PASS | docker login -u $USER --password-stdin 35.178.203.32:8082"
+                        sh 'docker push 35.178.203.32:8082/app:1.4'
+                    }
+                    
+                }
+            }
+        }
+
+        stage('Trigger Stage Playbooks') {
+            steps { 
+                sshagent(['ansible-key']) {
+                    sh "ssh -o StrictHostKeyChecking=no ubuntu@35.176.86.129 'ansible-playbook stage.yaml'"
+                }
+            }
+        }
+
+        stage ('Deploy To Prod'){
+            input{
+                message "Do you want to proceed with production deployment?"
+           }
+            steps { 
+                    sshagent(['ansible-key']) {
+                        sh "ssh -o StrictHostKeyChecking=no ubuntu@35.176.86.129 'ansible-playbook prod.yaml'"
+                }
+            }
+        }
+
+    }
+}
+

@@ -1,0 +1,27 @@
+pipeline {
+    agent any 
+    tools {
+        maven 'maven'
+    } 
+    
+    stages {
+        stage('Build Code'){
+            steps{
+                echo "packaging the application"
+                sh 'mvn package -Dmaven.test.skip'
+            }
+        }
+
+        stage ("build docker image and push to nexus") {
+            steps {
+                echo "building docker image and pushing to nexus"
+                withCredentials([usernamePassword(credentialsId:'nexus-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh 'docker build -t 18.170.216.32:8082/app:1.3 .'
+                    sh "echo $PASS | docker login -u $USER --password-stdin 18.170.216.32:8082"
+                    sh 'docker push 18.170.216.32:8082/app:1.3'
+                }
+            }
+        }
+
+    }
+}

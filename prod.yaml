@@ -1,0 +1,97 @@
+---
+- name: Configure target servers
+  hosts: tag_Name_docker_prod_asg
+  become: yes  
+  vars:
+    - docker_password: john 
+  tasks:
+    - name: Update target servers
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+        cache_valid_time: 3600
+    - name: setting hostname
+      hostname:
+        name: docker-prod  
+    - name: Install required system packages
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - virtualenv
+          - python3-setuptools
+        state: latest
+        update_cache: yes
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+    - name: Update apt and install docker-ce
+      apt:
+        name: docker-ce
+        state: latest
+        update_cache: true    
+    - name: Start docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+    - name: Install docker-python module
+      pip:
+        name: docker
+        state: present
+    - name: Add ubuntu to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Create daemon.json file
+      file:
+        path: /etc/docker/daemon.json
+        state: touch
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Adding Insecure registries to the daemon.json file
+      blockinfile:
+        path: /etc/docker/daemon.json
+        block: |
+          {
+            "insecure-registries" : ["52.56.59.203:8082"]
+          }
+
+    - name: Stop docker
+      service:
+        name: docker
+        state: stopped
+
+    - name: Start docker
+      service:
+        name: docker
+        state: started
+        enabled: yes    
+
+    - name: Docker login
+      docker_login:
+        registry_url: "52.56.59.203:8082"
+        username: john
+        password: "{{docker_password}}"
+  
+    - name: Create and run docker container
+      docker_container:
+        name: app
+        image: "52.56.59.203:8082/app:1.2"
+        state: started
+        published_ports:
+          - 0.0.0.0:3000:8080     
+      
+
+    
