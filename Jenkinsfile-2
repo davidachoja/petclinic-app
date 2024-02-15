@@ -1,5 +1,5 @@
 pipeline {
-    agent any 
+    agent {label 'jenk-agent'}
     tools {
         maven 'maven'
     } 
@@ -16,9 +16,9 @@ pipeline {
             steps {
                 echo "building docker image and pushing to nexus"
                 withCredentials([usernamePassword(credentialsId:'nexus-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh 'docker build -t 18.170.216.32:8082/app:1.3 .'
+                    sh 'docker build -t 18.170.61.138:8082/app:1.3 .'
                     sh "echo $PASS | docker login -u $USER --password-stdin 18.170.216.32:8082"
-                    sh 'docker push 18.170.216.32:8082/app:1.3'
+                    sh 'docker push 18.170.61.138:8082/app:1.3'
                 }
             }
         }
